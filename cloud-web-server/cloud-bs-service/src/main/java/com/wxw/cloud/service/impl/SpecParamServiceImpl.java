@@ -1,0 +1,46 @@
+package com.wxw.cloud.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.wxw.cloud.domain.SpecGroup;
+import com.wxw.cloud.domain.SpecParam;
+import com.wxw.cloud.dao.SpecParamMapper;
+import com.wxw.cloud.service.ISpecParamService;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+/**
+ * <p>
+ * 规格参数组下的参数名 服务实现类
+ * </p>
+ *
+ * @author twx
+ * @since 2026-05-6
+ */
+@Service
+public class SpecParamServiceImpl extends ServiceImpl<SpecParamMapper, SpecParam> implements ISpecParamService {
+
+    @Autowired
+    private SpecParamMapper specParamMapper;
+
+    @Override
+    public List<SpecParam> queryParams(Long gid, Long cid, Boolean generic, Boolean searching) {
+
+        QueryWrapper<SpecParam> wrapper = new QueryWrapper<>();
+        wrapper.eq(false,"group_id",gid);
+        wrapper.eq(false,"cid", cid);
+        wrapper.eq(false,"generic", generic);
+        wrapper.eq(false,"searching", searching);
+        return this.specParamMapper.selectList(wrapper);
+    }
+
+
+
+
+
+
+
+
+}

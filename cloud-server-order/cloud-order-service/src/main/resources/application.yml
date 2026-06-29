@@ -1,0 +1,41 @@
+server:
+  port: 8089
+
+spring:
+  application:
+    name: cloud-order-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/bs-wxw?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 1234
+    type: com.alibaba.druid.pool.DruidDataSource
+
+mybatis-plus:
+  mapper-locations: classpath*:com/wxw/cloud/dao/mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://bs.wxw.com:10086/eureka
+  instance:
+    instance-id: cloud-order-service
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+
+wxw:
+  jwt:
+    pubKeyPath: D:\BaiduNetdiskDownload\bs-cloud-dev-wxw\bs-cloud-dev-wxw\cloud-server-auth\cloud-auth-service\src\main\resources\rsa\rsa.pub
+    cookieName: BS_TOKEN
+  pay:
+    appId: 9021000163672000
+    privateKey: MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCx7ZWpwsZnsPljINAGcOXuhKQ3K6hwmaCt0i131pMQodeK/jH/2m+de39ha+J5nBwnyH55/9MCx2623ZO6DzjBdcXiQePCi+9U4PT+KTK55QLesiqdMvuUXW9YIwwEi60FTwyYfzSeTM++7jMfwL8JZ1npUvjR3zVX2wCSi+f9Ioko+3Iza5f34X1fEfrJRRA/5y4d45lImVkfxATP9pzSEtbCwC6iVQlwccu5tby2c++FCWuIvOVmUk2ZQlGradkRTrbQKJlqVJcNRx7Zv6Dh1nOJnAs8d34Ve/lThAiUaxGbvbfZJ2l3U3x8LmSsqSiCsnB4EObq6P0KxVZYhWvHAgMBAAECggEAPKrv3wRktjJntl8XzzprjBp6C729Hzeiy+HgUv49AuzMG750ufJ3IFFdq5AnlqOeDgqU5XBPOKFbpMqEdmp+RaisomspB8rC/kP+BTNy8mOdyOUjFpqtoXcCYiEBFgOyKR89AjpNbLRwGYAKuob0HHa6942s/ZKIE76+wTknDu5Hv0ktaGFk0jTdLZztaqn5UCstnkpzklcwo3sbwnlk//tMl5RqLHCPw0lEJUU8Mzbtv1cQABAiUAdmcSGyfYralgsADj11X9RvZjD40IgeC1oYqx5zq8GOb9xArsQiTX0jUOnHwiuFgp2fUJZYzLTH6XDb7qWS/goj/dRSqJhhwQKBgQDlTGqHpv/UbIXCt+e+BR2YN4VkuX0EjhnoFKHV+tGkRMjTd3cdmbOFFt2GxBpqVrxRy23tUn/L0dhn6sogZGSw0RMgGXYPrQLnwX1RJpqKes0io5fw9/SL7IlECzf2IkRtvYL6t//DokrRQzyWh/BmQnuyVxZrwBsA3Khuvq5DEQKBgQDGpcWhMCqiEu85H7SvYO16WGLpbgXqTBMIKnUoSNDXucI0Yp8g1V4VYxN2Ze4n9TsB8NEjcWt4Y7jPJw5F3IfqrNG7fynTBX7I/x6Fn4VtbgXm3ncLgnm1xQTwrrqii9G3tal3dBseTcrCqM6BGZdSksf9ztfdWeZFl3u7wlCRVwKBgE+TbYUWV8KIxwMEf9BaRiMFYa3LEa/7ANKiFmgEW6z+khORai1DoiGWBds3Q1OUNlbMmqG598/sS4YE3ZDQRoF2jYSeUXKvQErdw3feRdO5OmfDDn/6DUxiEmEi45Dv43+SPVp1cLWcJQrqoqQ7GRrkB7mkr4tFaBmseme0lRWBAoGBAIvmNaAGdw/7u8SEQtD8t2Lhmo+BL+NJPmIS3L3JQmObbF1OU3lhK0hupUdOFALKH4uHWRLYDvMTcBVcER48aPBqU67zqLX3+cl+erVqmiJuSPPGGxrdAfB017zVoZVWWRVDeB0rhOm7qZ+cGQssxbierQBfywEWDilWvQqHmAwzAoGAc0kPf4mHicqJl5znqaNHzEQbm6PTNrJC5Pnpv0OHjJrikItACfBmntaieXb1Bxs2P+yMARcZNGV+flf27WZyvlbE9grUJeZrWig9J18DIV2M3le7WcID3Opy2h9bfX29HohxdGgiy/O55h5l4eecY0rEc+PGM5O47lJD3WZ9UAg=
+    publicKey: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvPBP+j+ZiITQGAx+IWHQPckMR3irNgP30WBEA99VZ0kZyb4nNTqbxo0ocdIlVJ1NRf3NzKiCmEj6sDLpEQMnVCnDkcS8GCtxeafVFO8SR4KZgTs0zF7YJcnNtrgb/ZsB5sjwKzJXcBtsvh95CEF4lm83dLc3FESMeQ1G+9m4hGDGMlorqvEVDriyYZQCNwZ/8M1YZev8YyN7ttfOlYGLmr8aH5Nzvf5zRWiDp3J5xht33QOjCW5NV8JxC01GZpgvR8rEqO/q6AlYD3IEIAMZOhTEcRnJkS2C7xZrKhtOz7ZRjLTVo0u7k4rEVjar/ZqJmF5451+3kr2EGbYKt4nxjQIDAQAB
+    notifyUrl:
+    returnUrl: http://localhost:9002/pay-return.html
+    signType: RSA2
+    charset: UTF-8
+    format: json
+    gatewayUrl: https://openapi-sandbox.dl.alipaydev.com/gateway.do

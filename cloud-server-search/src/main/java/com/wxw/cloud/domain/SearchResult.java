@@ -1,0 +1,41 @@
+package com.wxw.cloud.domain;
+
+import com.wxw.cloud.result.PageResult;
+import lombok.*;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @author twx
+ * @create:   2026-5-16
+ */
+
+@Data
+public class SearchResult extends PageResult<Goods> {
+
+    private List<Map<String,Object>> categories;
+
+    private List<Brand> brands;
+
+    // 聚合规格参数 发序列化localdatatime  问题 暂放
+   // private List<Map<String,Object>> specs;
+
+
+    public SearchResult(Long total, List<Goods> items, List<Map<String, Object>> categories, List<Brand> brands) {
+        super(total, items);
+        this.categories = categories;
+        this.brands = brands;
+    }
+
+    public SearchResult(Long total, Long totalPage, List<Goods> items, List<Map<String, Object>> categories, List<Brand> brands) {
+        super(total, totalPage, items);
+        this.categories = categories;
+        this.brands = brands;
+    }
+
+    public SearchResult(List<Map<String, Object>> categories, List<Brand> brands) {
+        this.categories = categories;
+        this.brands = brands;
+    }
+}

@@ -1,0 +1,325 @@
+package com.wxw.cloud.controller;
+
+
+import com.alibaba.fastjson.JSON;
+import com.alipay.api.AlipayApiException;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.wxw.cloud.domain.Order;
+import com.wxw.cloud.domain.OrderDetail;
+import com.wxw.cloud.domain.OrderStatus;
+import com.wxw.cloud.result.PageResult;
+import com.wxw.cloud.result.Result;
+import com.wxw.cloud.service.AlipayService;
+import com.wxw.cloud.service.IOrderDetailService;
+import com.wxw.cloud.service.IOrderService;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.util.CollectionUtils;
+import org.springframework.web.bind.annotation.*;
+import springfox.documentation.annotations.ApiIgnore;
+
+import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.validation.Valid;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ *
+ * @author twx
+ * @since 2026-05-6
+ */
+@Slf4j
+@RestController
+@Api(tags = "OrderController",description = "订单微服务")
+public class OrderController {
+
+    @Resource
+    private IOrderService orderService;
+
+    @Resource
+    private IOrderDetailService orderDetailService;
+
+    @Resource
+    private AlipayService alipayService;
+
+    @PostMapping
+    @ApiOperation(value = "创建订单接口，返回订单编号",notes = "创建订单")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "order",required = true,value = "订单的json对象，包含订单条目和物流信息"),
+            @ApiImplicitParam(name = "seck",required = false,value = "是否是秒杀订单")
+    })
+    public ResponseEntity<List<String>> createOrder(@RequestParam(value = "seck",defaultValue = "1") String seck, @RequestBody @Valid Order order){
+        // 查询库存
+        List<Long> skuIds = this.orderService.queryStock(seck,order);
+        if (skuIds.size() != 0){
+            //库存不足
+            List<String> list = skuIds.stream().map(skuId -> {
+                return skuId.toString();
+            }).collect(Collectors.toList());
+
+            return new ResponseEntity<>(list, HttpStatus.OK);
+        }
+
+        Long orderId = this.orderService.createOrder(seck, order);
+        if (orderId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+        String id = orderId.toString();
+        return new ResponseEntity<>(Arrays.asList(id), HttpStatus.CREATED);
+    }
+
+    @ApiOperation("根据订单编号查询订单")
+    @GetMapping("{id}")
+    public ResponseEntity<Order> queryOrderById(@PathVariable("id")Long id){
+        Order order = this.orderService.queryOrderById(id);
+        if (order == null){
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        return ResponseEntity.ok(order);
+    }
+
+    @ApiOperation("分页查询当前用户订单")
+    @GetMapping("list")
+    public ResponseEntity<PageResult<Order>> queryUserOrderList(
+            @RequestParam(value = "page",defaultValue = "1")Integer page,
+            @RequestParam(value = "rows",defaultValue = "5")Integer rows,
+            @RequestParam(value = "status",required = false)Integer status
+    ){
+
+        PageResult<Order> result = this.orderService.queryUserOrderList(page,rows,status);
+        if (result == null){
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    @ApiOperation("更新订单状态")
+    @PutMapping("{id}/{status}")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "id",value = "订单编号",type = "Long"),
+            @ApiImplicitParam(name = "status",value = "订单状态：1未付款，" +
+                    "2已付款未发货，" +
+                    "3已发货未确认，" +
+                    "4已确认未评价，" +
+                    "5交易关闭，" +
+                    "6交易成功，已评价",defaultValue = "1",type = "Integer")
+    })
+    public ResponseEntity<Boolean> updateOrderStatus(@PathVariable("id") Long id,@PathVariable("status") Integer status){
+        Boolean result = this.orderService.updateOrderStatus(id,status);
+        if (result == null){
+            //返回400
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+        //返回204
+        return new ResponseEntity<>(result,HttpStatus.NO_CONTENT);
+    }
+
+    @ApiOperation("删除订单")
+    @DeleteMapping("{id}")
+    public ResponseEntity<Void> deleteOrder(@PathVariable("id") Long id) {
+        Boolean result = this.orderService.deleteOrder(id);
+        if (result == null || !result) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    @ApiOperation("前往支付宝进行支付")
+    @GetMapping(value = "goAlipay",produces = "text/html; charset=UTF-8")
+    public String goAliPay(@RequestParam("orderId") String orderId,
+                           @RequestParam(value = "returnUrl", required = false) String returnUrl){
+        try {
+            log.info("支付订单号：{}", orderId);
+            if (StringUtils.isBlank(orderId) || !StringUtils.isNumeric(orderId)) {
+                return "订单号不正确：" + orderId;
+            }
+            //1. 查询订单
+            Order order = this.orderService.getById(Long.valueOf(orderId));
+            if (order == null){
+                return "订单不存在，当前订单号：" + orderId;
+            }
+            //2. 查询订单详情
+            QueryWrapper<OrderDetail> wrapper = new QueryWrapper<>();
+            wrapper.eq("order_id", orderId);
+            List<OrderDetail> orderDetails = this.orderDetailService.list(wrapper);
+            if (CollectionUtils.isEmpty(orderDetails)){
+                return "订单明细为空，无法发起支付";
+            }
+            normalizePayAmount(order, orderDetails);
+            OrderDetail orderDetail = orderDetails.get(0);
+            //log.info("订单=>{},||订单详情：{}", order,orderDetail);
+            String resp = this.alipayService.getAliPayClient(order, orderDetail, returnUrl);
+            return  resp;
+        } catch (Exception e) {
+            log.error("支付异常：{}",e);
+            return e.getMessage();
+        }
+    }
+
+    @ApiOperation("根据订单id查询其包含的skuId")
+    private void normalizePayAmount(Order order, List<OrderDetail> orderDetails) {
+        long goodsAmount = 0L;
+        for (OrderDetail detail : orderDetails) {
+            long price = detail.getPrice() == null ? 0L : detail.getPrice();
+            int num = detail.getNum() == null || detail.getNum() < 1 ? 1 : detail.getNum();
+            goodsAmount += price * num;
+        }
+        long postFee = order.getPostFee() == null ? 0L : order.getPostFee();
+        long actualPay = goodsAmount + postFee;
+        if (actualPay <= 0) {
+            return;
+        }
+        boolean changed = !Objects.equals(order.getTotalPay(), goodsAmount)
+                || !Objects.equals(order.getActualPay(), actualPay);
+        if (!changed) {
+            return;
+        }
+        order.setTotalPay(goodsAmount);
+        order.setActualPay(actualPay);
+        this.orderService.updateById(order);
+    }
+
+    @GetMapping("skuId/{id}")
+    public ResponseEntity<List<Long>> querySkuIdByOrderId(@PathVariable("id") Long id){
+        List<Long> longList = this.orderService.querySkuIdByOrderId(id);
+        if (longList == null || longList.size() == 0){
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        return ResponseEntity.ok(longList);
+    }
+
+    @ApiOperation("根据订单id查询订单状态")
+    @GetMapping("status/{id}")
+    public ResponseEntity<OrderStatus> queryOrderStatusById(@PathVariable("id") Long id){
+        OrderStatus orderStatus = this.orderService.queryOrderStatusById(id);
+        if (orderStatus == null){
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        return ResponseEntity.ok(orderStatus);
+    }
+
+    @ApiOperation("交易查询")
+    @PostMapping("tradeQuery")
+    public Result<String> tradeQuery(@RequestParam("orderId") String orderId) {
+        Result<String> result = new Result<>();
+        try {
+            String query = this.alipayService.query(orderId);
+            return result.success(JSON.toJSONString(query),"交易查询成功");
+        } catch (Exception e) {
+            log.error("查询交易异常");
+            return result.fail(e.getMessage());
+        }
+    }
+
+    @ApiOperation("退款")
+    @GetMapping("refund")
+    public Result refund(
+            @RequestParam("orderId")String orderId,
+            @RequestParam("refundReason")String refundReason,
+            @RequestParam(value = "reqNo", required = false)String reqNo,
+            @RequestParam(value = "refundAmount", required = false)String refundAmount
+    ){
+        Result<String> result = new Result<>();
+        try {
+            log.info("退款入参4：{}",refundAmount);
+            String refund = this.alipayService.refund(orderId, refundReason, refundAmount, reqNo);
+            return result.success(JSON.toJSONString(refund),"退款成功");
+        } catch (AlipayApiException e) {
+            log.error("退款失败：{}", e);
+            return result.fail(e.getMessage());
+        }
+    }
+
+    @ApiOperation("退款查询")
+    @PostMapping("refundQuery")
+    public Result<String> refundQuery(
+            @RequestParam("orderId")String orderId,
+            @RequestParam(value = "reqNo", required = false)String reqNo
+    ){
+        Result<String> result = new Result<>();
+        try {
+            String refundQuery = this.alipayService.refundQuery(orderId, reqNo);
+            return result.success(refundQuery,"退款查询成功");
+        } catch (AlipayApiException e) {
+            log.info("退款查询发生异常：{}", e);
+            return result.fail("退款查询失败");
+        }
+    }
+
+    @ApiOperation("交易关闭")
+    @PostMapping("alipayClose")
+    public Result<String>alipayClose(@RequestParam("orderId")String orderId){
+        Result<String> result = new Result<>();
+        try {
+            String close = this.alipayService.close(orderId);
+            return result.success(close,"交易关闭成功");
+        } catch (AlipayApiException e) {
+            log.info("交易关闭时出现异常",e);
+            return result.fail(e.getMessage());
+        }
+    }
+    @ApiIgnore
+    //@ApiOperation("支付宝同步通知页面")
+    @RequestMapping("ReturnNotice")
+    @ResponseBody
+    public Result<String> alipayReturnNotice(HttpServletRequest request,HttpServletResponse response){
+       log.info("支付成功，进入同步通知接口");
+        Result<String> result = new Result<>();
+        try {
+            //获取支付宝GET过来反馈信息
+            Map<String,String> params = new HashMap<String,String>();
+            Map<String,String[]> requestParams = request.getParameterMap();
+            Boolean returnUrl = this.alipayService.getReturnUrl(request, params, requestParams);
+            if (!returnUrl){
+                return result.fail("同步通知回调失败");
+            }
+            return result.success();
+        } catch (Exception e) {
+            log.error("异步回调发生异常：{}", e);
+            return result.fail(e.getMessage());
+        }
+    }
+    @ApiIgnore
+    //@ApiOperation("支付宝异步 通知页面")
+    @ResponseBody
+    @RequestMapping("NotifyNotice")
+    public Result<String> alipayNotify(HttpServletRequest request, HttpServletResponse response){
+        log.info("支付成功, 进入异步通知接口...");
+        Result<String> result = new Result<>();
+        try {
+            //获取支付宝POST过来反馈信息
+            Map<String,String> params = new HashMap<String,String>();
+            Map<String,String[]> requestParams = request.getParameterMap();
+            Boolean notifyUrl = this.alipayService.getNotifyUrl(request, params, requestParams);
+            if (notifyUrl){
+                return result.success();
+            }
+            return result.fail("异步回调失败");
+        } catch (Exception e) {
+            log.error("异步回调发生异常：{}", e);
+            return result.fail(e.getMessage());
+        }
+    }
+
+    // 供应后台管理
+    @ApiOperation("获取订单列表")
+    @GetMapping
+    public ResponseEntity<List<Order>> getOrderList(){
+        List<Order> orderList = this.orderService.list();
+        if (CollectionUtils.isEmpty(orderList)){
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(orderList);
+    }
+
+
+}

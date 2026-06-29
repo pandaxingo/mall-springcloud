@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>支付完成</title>
+</head>
+<body>
+  <script>
+    window.localStorage.setItem("alipayReturnTime", String(Date.now()));
+    window.location.replace("/#/order");
+  </script>
+</body>
+</html>

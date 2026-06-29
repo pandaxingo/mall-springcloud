@@ -1,0 +1,30 @@
+package com.wxw.cloud.dao;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.wxw.cloud.domain.Brand;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+
+import java.util.List;
+
+/**
+ * <p>
+ * 品牌表，一个品牌下有多个商品（spu），一对多关系 Mapper 接口
+ * </p>
+ *
+ * @author twx
+ * @since 2026-05-6
+ */
+public interface BrandMapper extends BaseMapper<Brand> {
+
+    @Insert("INSERT INTO tb_category_brand (category_id,brand_id) VALUES (#{cid},#{bid})")
+    void insertCategoryAndBrand(@Param("cid") Long cid,@Param("bid") Long bid);
+
+    @Delete("DELETE FROM tb_category_brand where brand_id=#{bid}")
+    void deleteCategoryBrandId(Long id);
+
+    @Select("SELECT b.* from tb_brand b INNER JOIN tb_category_brand cb on b.id=cb.brand_id where cb.category_id=#{cid}")
+    List<Brand> queryBrandsByCid(Long cid);
+}
